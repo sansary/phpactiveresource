@@ -63,7 +63,7 @@ class ActiveResource {
 	/**
 	 * The remote collection, e.g., person or thing
 	 */
-	protected static $element_name = false;
+	public static $element_name = false;
 
 	/**
 	 * Pleural form of the element name, e.g., people or things
@@ -107,7 +107,9 @@ class ActiveResource {
 		}
 
 		// Get the plural name after removing namespaces
+        //echo "element name is " . static::$element_name;
 		static::$element_name_plural = static::pluralize(static::$element_name);
+        //echo "element name is " . static::$element_name_plural;
 	}
 
 	/**
@@ -199,6 +201,7 @@ class ActiveResource {
 			$options_string = '?' . http_build_query($options);
 		}
 		if ($id == 'all') {
+            //echo ("static site isss ".static::$element_name_plural);
 			$url = static::$site . static::$element_name_plural . '.json';
 			return static::_send_and_receive($url . $options_string, 'GET');
 		}
@@ -322,15 +325,19 @@ class ActiveResource {
 
 class ApiUser extends ActiveResource{
 	public static $element_name = 'api_user';
+    public static $element_name_plural = 'api_users';
 	public static $site = 'http://localhost:3000/accounts/2/';
-	public static $access_token = "eba5bef1b170df3f300f724d168ca1a1";	
+//	public static $access_token = "eba5bef1b170df3f300f724d168ca1a1";
+    public static $access_token = "c5833f3f9668296ee596bfa24c4416f3";
 }
 ApiUser::init();
 
 class Track extends ActiveResource {
 	public static $element_name = 'track';
+    public static $element_name_plural = 'tracks';
 	public static $site = 'http://localhost:3000/accounts/2/';
-	public static $access_token = "eba5bef1b170df3f300f724d168ca1a1";
+//	public static $access_token = "eba5bef1b170df3f300f724d168ca1a1";
+    public static $access_token = "c5833f3f9668296ee596bfa24c4416f3";
 }	
 
 Track::init();
@@ -341,26 +348,26 @@ Track::init();
 
 
 
-echo ApiUser::$element_name;
-echo Track::$element_name;
-echo ApiUser::$element_name;
+//echo ApiUser::$element_name;
+//echo Track::$element_name;
+//echo ApiUser::$element_name;
+//
+//echo ApiUser::$element_name_plural;
+//echo Track::$element_name_plural;
+//echo ApiUser::$element_name_plural;
 
 echo ApiUser::$element_name_plural;
-echo Track::$element_name_plural;
-echo ApiUser::$element_name_plural;
-
-
 ApiUser::findall();
-$account_scope = array("accounts"=>2);
-$track_scope = array("accounts"=>2, 'tracks'=>1);
-$a = ApiUser::find('4', $account_scope);
-echo $a -> email . "\n";
-echo $a -> id . "\n";
-echo $a -> access_token . "\n";
+//$account_scope = array("accounts"=>2);
+//$track_scope = array("accounts"=>2, 'tracks'=>1);
+//$a = ApiUser::find('4', $account_scope);
+//echo $a -> email . "\n";
+//echo $a -> id . "\n";
+//echo $a -> access_token . "\n";
 
-ApiUser::create(array('email' => 'foo@foo.com'));
-ApiUser::update(4, array('email' => 'adsfadaf@bla.com', 'role'=>2));
-//Track::getTrackData();
+//ApiUser::create(array('email' => 'foo@foo.com'));
+//ApiUser::update(4, array('email' => 'adsfadaf@bla.com', 'role'=>2));
+////Track::getTrackData();
 
 
 ?>
