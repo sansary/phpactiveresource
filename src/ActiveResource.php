@@ -1,5 +1,12 @@
 <?php
 
+namespace ActiveResource;
+
+require_once 'vendor/autoload.php';
+use Guzzle\Http\Client;
+use Monolog\Logger;
+use Monolog\Handler\StreamHandler;
+
 /**
  * Basic implementation of the Ruby on Rails ActiveResource REST client.
  * Intended to work with RoR-based REST servers, which all share similar
@@ -8,39 +15,42 @@
  * Usage:
  *
  *     <?php
- *     
+ *
  *     require_once ('ActiveResource.php');
- *     
+ *
  *     class Song extends ActiveResource {
  *         var $site = 'http://localhost:3000/';
  *         var $element_name = 'songs';
  *     }
- *     
+ *
  *     // create new item
  *     $song = new Song (array ('artist' => 'Joe Cocker', 'title' => 'A Little Help From My Friends'));
  *     $song->save ();
- *     
+ *
  *     // fetch and update an item
  *     $song->find (44)->set ('title', 'The River')->save ();
- *     
+ *
  *     // line by line
  *     $song->find (44);
  *     $song->title = 'The River';
  *     $song->save ();
- *     
+ *
  *     // get all songs
  *     $songs = $song->find ('all');
- *     
+ *
  *     // delete a song
  *     $song->find (44);
  *     $song->destroy ();
- *     
+ *
  *     // custom method
  *     $songs = $song->get ('by_year', array ('year' => 1999));
- *     
- *     ?>
  *
- * @author John Luxford <lux@companymachine.com>
+ *
+
+ ?>
+ *
+ * @author John Luxford
+ <lux@companymachine.com>
  * @version 0.14 beta
  * @license http://opensource.org/licenses/lgpl-2.1.php
  */
@@ -48,672 +58,309 @@ class ActiveResource {
 	/**
 	 * The REST site address, e.g., http://user:pass@domain:port/
 	 */
-	var $site = false;
+	protected static $site = false;
 
-	/**
-	 * Add any extra params to the end of the url eg: API key
-	 */
-	var $extra_params = false;
-
-	/**
-	 * HTTP Basic Authentication user
-	 */
-	var $user = null;
-
-	/**
-	 * HTTP Basic Authentication password
-	 */	
-	var $password = null;
-	
 	/**
 	 * The remote collection, e.g., person or thing
 	 */
-	var $element_name = false;
+	protected static $element_name = false;
 
 	/**
 	 * Pleural form of the element name, e.g., people or things
 	 */
-	var $element_name_plural = '';
-
-	/**
-	 * The data of the current object, accessed via the anonymous get/set methods.
-	 */
-	var $_data = array ();
-
-	/**
-	 * An error message if an error occurred.
-	 */
-	var $error = false;
-
-	/**
-	 * The error number if an error occurred.
-	 */
-	var $errno = false;
-
-	/**
-	 * The request that was sent to the server.
-	 */
-	var $request_body = '';
-
-	/**
-	 * The request headers that was sent to the server.
-	 */
-	var $request_headers = array ();
-
-	/**
-	 * The complete URL that the request was sent to.
-	 */
-	var $request_uri = '';
-
-	/**
-	 * The request method sent to the server.
-	 */
-	var $request_method = '';
-
-	/**
-	 * The response code returned from the server.
-	 */
-	var $response_code = false;
-
-	/**
-	 * The raw response headers sent from the server.
-	 */
-	var $response_headers = '';
-
-	/**
-	 * The response body sent from the server.
-	 */
-	var $response_body = '';
-
-	/**
-	 * The format requests should use to send data (url or xml).
-	 */
-	var $request_format = 'url';
+	public  static $element_name_plural = '';
 
 	/**
 	 * Corrections to improper pleuralizations.
 	 */
-	var $pleural_corrections = array (
-		'persons' => 'people',
-		'peoples' => 'people',
-		'mans' => 'men',
-		'mens' => 'men',
-		'womans' => 'women',
-		'womens' => 'women',
-		'childs' => 'children',
-		'childrens' => 'children',
-		'sheeps' => 'sheep',
-		'octopuses' => 'octopi',
-		'quizs' => 'quizzes',
-		'axises' => 'axes',
-		'buffalos' => 'buffaloes',
-		'tomatos' => 'tomatoes',
-		'potatos' => 'potatoes',
-		'oxes' => 'oxen',
-		'mouses' => 'mice',
-		'matrixes' => 'matrices',
-		'vertexes' => 'vertices',
-		'indexes' => 'indices',
-	);
+	protected static $pleural_corrections = array('persons' => 'people', 'peoples' => 'people', 'mans' => 'men', 'mens' => 'men', 'womans' => 'women', 'womens' => 'women', 'childs' => 'children', 'childrens' => 'children', 'sheeps' => 'sheep', 'octopuses' => 'octopi', 'quizs' => 'quizzes', 'axises' => 'axes', 'buffalos' => 'buffaloes', 'tomatos' => 'tomatoes', 'potatos' => 'potatoes', 'oxes' => 'oxen', 'mouses' => 'mice', 'matrixes' => 'matrices', 'vertexes' => 'vertices', 'indexes' => 'indices', );
 
-	/**
-	 * Constructor method.
-	 */
-	function __construct ($data = array ()) {
-		$this->_data = $data;
+	
+	
+	private $data=false;
+		
+		
+	public function __construct($data=false){
+		if ($data){
+			$this->data = $data;
+		}
+	}	
+		
+	
+	//---- in the init
+	protected static $client;
+	protected static $log;
+	
+
+	public static function init() {
+
+		static::$client = new Client();
+		static::init_log();
+
 		// Allow class-defined element name or use class name if not defined
-		$this->element_name = $this->element_name ? $this->element_name : strtolower (get_class ($this));
-
+		static::$element_name = static::$element_name ? static::$element_name : strtolower(get_called_class());
+		
 		// Detect for namespaces, and take just the class name
-		if (stripos ($this->element_name, '\\')) {
-			$classItems = explode ('\\', $this->element_name);
-			$this->element_name = end ($classItems);
+		if (stripos(static::$element_name, '\\')) {
+			$classItems = explode('\\', static::$element_name);
+			static::$element_name = end($classItems);
 		}
 
 		// Get the plural name after removing namespaces
-		$this->element_name_plural = $this->pluralize ($this->element_name);
-
-		// if configuration file (config.ini.php) exists use it (overwrite class properties/attribute values).
-		$config_file_path = dirname (__FILE__) . '/' . 'config.ini.php';
-		if (file_exists ($config_file_path)) {
-			$properties = parse_ini_file ($config_file_path);
-			foreach ($properties as $property => $value )
-				$this->{$property} = $value;
-		}
+		static::$element_name_plural = static::pluralize(static::$element_name);
 	}
 
 	/**
 	 * Pluralize the element name.
 	 */
-	function pluralize ($word) {
+	private static function pluralize($word) {
 		$word .= 's';
-		$word = preg_replace ('/(x|ch|sh|ss])s$/', '\1es', $word);
-		$word = preg_replace ('/ss$/', 'ses', $word);
-		$word = preg_replace ('/([ti])ums$/', '\1a', $word);
-		$word = preg_replace ('/sises$/', 'ses', $word);
-		$word = preg_replace ('/([^aeiouy]|qu)ys$/', '\1ies', $word);
-		$word = preg_replace ('/(?:([^f])fe|([lr])f)s$/', '\1\2ves', $word);
-		$word = preg_replace ('/ieses$/', 'ies', $word);
-		if (isset ($this->pleural_corrections[$word])) {
-			return $this->pleural_corrections[$word];
+		$word = preg_replace('/(x|ch|sh|ss])s$/', '\1es', $word);
+		$word = preg_replace('/ss$/', 'ses', $word);
+		$word = preg_replace('/([ti])ums$/', '\1a', $word);
+		$word = preg_replace('/sises$/', 'ses', $word);
+		$word = preg_replace('/([^aeiouy]|qu)ys$/', '\1ies', $word);
+		$word = preg_replace('/(?:([^f])fe|([lr])f)s$/', '\1\2ves', $word);
+		$word = preg_replace('/ieses$/', 'ies', $word);
+		if (isset(static::$pleural_corrections[$word])) {
+			return static::$pleural_corrections[$word];
 		}
 		return $word;
 	}
 
+	// /**
+	// * For backwards-compatibility.
+	// */
+	// function pleuralize ($word) {
+	// return $this->pluralize ($word);
+	// }
+
 	/**
-	 * For backwards-compatibility.
+	 * Saves a new record or upd	ates an existing one via:
+	 *
+	 *     POST /collection.json
+	 *     PUT  /collection/id.json
 	 */
-	function pleuralize ($word) {
-		return $this->pluralize ($word);
+	function save() {
+		//this is an update
+		if (isset($this -> _data['id'])) {
+			return $this -> _send_and_receive($this -> site . $this -> element_name_plural . '/' . $this -> _data['id'] . '.json', 'PUT', $this -> _data);
+			// update
+		}
+		// this is a create
+		return $this -> _send_and_receive($this -> site . $this -> element_name_plural . '.json', 'POST', $this -> _data);
+		// create
 	}
 
 	/**
-	 * Saves a new record or updates an existing one via:
+	 * Creates a new record
 	 *
-	 *     POST /collection.xml
-	 *     PUT  /collection/id.xml
+	 *     POST /collection.json
+
 	 */
-	function save () {
-		if (isset ($this->_data['id'])) {
-			return $this->_send_and_receive ($this->site . $this->element_name_plural . '/' . $this->_data['id'] . '.xml', 'PUT', $this->_data); // update
-		}
-		return $this->_send_and_receive ($this->site . $this->element_name_plural . '.xml', 'POST', $this->_data); // create
+	public static function update($id, $data) {
+		// this is a create
+		return static::_send_and_receive(static::$site . static::$element_name_plural.'/'.$id. '.json', 'PUT', array(static::$element_name => $data));
 	}
+
+
+	/**
+	 * Creates a new record
+	 *
+	 *     POST /collection.json
+	 */
+	public static function create($data) {
+		// this is a create
+		return static::_send_and_receive(static::$site . static::$element_name_plural . '.json', 'POST', array(static::$element_name => $data));
+	}
+
+
+
+
 
 	/**
 	 * Deletes a record via:
 	 *
-	 *     DELETE /collection/id.xml
+	 *     DELETE /collection/id.json
 	 */
-	function destroy () {
-		return $this->_send_and_receive ($this->site . $this->element_name_plural . '/' . $this->_data['id'] . '.xml', 'DELETE');
+	function destroy() {
+		return $this -> _send_and_receive($this -> site . $this -> element_name_plural . '/' . $this -> _data['id'] . '.json', 'DELETE');
 	}
 
 	/**
 	 * Finds a record or records via:
 	 *
-	 *     GET /collection/id.xml
-	 *     GET /collection.xml
+	 *     GET /collection/id.json
+	 *     GET /collection.json
 	 */
-	function find ($id = false, $options = array ()) {
-		if (! $id) {
-			$id = $this->_data['id'];
-		}
+	public static function find($id, $options = array ()) {
 		$options_string = '';
-		if (count ($options) > 0) {
-			$options_string = '?' . http_build_query ($options);
+		if (count($options) > 0) {
+			$options_string = '?' . http_build_query($options);
 		}
 		if ($id == 'all') {
-			$url = $this->site . $this->element_name_plural . '.xml';
-			return $this->_send_and_receive ($url . $options_string, 'GET');
+			$url = static::$site . static::$element_name_plural . '.json';
+			return static::_send_and_receive($url . $options_string, 'GET');
 		}
-		return $this->_send_and_receive ($this->site . $this->element_name_plural . '/' . $id . '.xml' . $options_string, 'GET');
+		return static::_send_and_receive(static::$site . static::$element_name_plural . '/' . $id . '.json' . $options_string, 'GET');
+	}
+
+	/**
+	 * Finds a record or records via:
+	 *
+	 *     GET /collection.json
+	 */
+	public static function findall($options = array ()) {
+		static::find('all', $options);
 	}
 
 	/**
 	 * Gets a specified custom method on the current object via:
 	 *
-	 *     GET /collection/id/method.xml
-	 *     GET /collection/id/method.xml?attr=value
+	 *     GET /collection/id/action.json
+	 *     GET /collection/id/action.json?attr=value 
 	 */
-	function get ($method, $options = array ()) {
-		$req = $this->site . $this->element_name_plural;
-        if (isset ($this->_data['id']) && $this->_data['id']) { 
-          $req .= '/' . $this->_data['id'];
-        }
-        $req .= '/' . $method . '.xml';
-		if (count ($options) > 0) {
-			$req .= '?' . http_build_query ($options);
+	public static function get($id, $method, $options = array ()) {
+		$options_string = '';
+		if (count($options) > 0) {
+			$options_string = '?' . http_build_query($options);
 		}
-		return $this->_send_and_receive ($req, 'GET');
+
+		return static::_send_and_receive(static::$site . static::$element_name_plural . '/' . $id .'/'.$method .'.json' . $options_string, 'GET');		
 	}
 
 	/**
 	 * Posts to a specified custom method on the current object via:
 	 *
-	 *     POST /collection/id/method.xml
+	 *     POST /collection/id/action.json
 	 */
-	function post ($method, $options = array (), $start_tag = false) {
-		$req = $this->site . $this->element_name_plural;
-        if ($this->_data['id']) {
-          $req .= '/' . $this->_data['id'];
-        }
-        $req .= '/' . $method . '.xml';
-		return $this->_send_and_receive ($req, 'POST', $options, $start_tag);
+	function post($method, $options = array ()) {
+		$req = $this -> site . $this -> element_name_plural;
+		if ($this -> _data['id']) {
+			$req .= '/' . $this -> _data['id'];
+		}
+		$req .= '/' . $method . '.json';
+		return $this -> _send_and_receive($req, 'POST', $options, $start_tag);
+		return static::_send_and_receive(static::$site . static::$element_name_plural . '/' . $id .'/'.$method .'.json' . $options_string, 'GET');		
+		
 	}
 
 	/**
 	 * Puts to a specified custom method on the current object via:
 	 *
-	 *     PUT /collection/id/method.xml
+	 *     PUT /collection/id/method.json
 	 */
-	function put ($method, $options = array (), $options_as_xml = false, $start_tag = false) {
-		$req = $this->site . $this->element_name_plural;
-        if ($this->_data['id']) { 
-        	$req .= '/' . $this->_data['id'];
-        }
-        $req .= '/' . $method . '.xml';
+	function put($method, $options = array (), $options_as_xml = false, $start_tag = false) {
+		$req = $this -> site . $this -> element_name_plural;
+		if ($this -> _data['id']) {
+			$req .= '/' . $this -> _data['id'];
+		}
+		$req .= '/' . $method . '.json';
 		if ($options_as_xml) {
-			return $this->_send_and_receive ($req, 'PUT', $options, $start_tag);
+			return $this -> _send_and_receive($req, 'PUT', $options, $start_tag);
 		}
-		if (count ($options) > 0) {
-			$req .= '?' . http_build_query ($options);
+		if (count($options) > 0) {
+			$req .= '?' . http_build_query($options);
 		}
-		return $this->_send_and_receive ($req, 'PUT');
-	}
-
-	/**
-	 * Simple recursive function to build an XML response.
-	 */
-	function _build_xml ($k, $v) {
-		if (is_object ($v) && strtolower (get_class ($v)) == 'simplexmlelement') {
-			return preg_replace ('/<\?xml(.*?)\?>\n*/', '', $v->asXML ());
-		}
-		$res = '';
-		$attrs = '';
-		if (! is_numeric ($k)) {
-			$res = '<' . $k . '{{attributes}}>';
-		}
-		if (is_object ($v)) {
-			$v = (array) $v;
-		}
-		if (is_array ($v)) {
-			foreach ($v as $key => $value) {
-				// handle attributes of repeating tags
-				if (is_numeric ($key) && is_array ($value)) {
-					foreach ($value as $sub_key => $sub_value) {
-						if (strpos ($sub_key, '@') === 0) {
-							$attrs .= ' ' . substr ($sub_key, 1) . '="' . $this->_xml_entities ($sub_value) . '"';
-							unset ($value[$sub_key]);
-							continue;
-						}
-					}
-				}
-
-				if (strpos ($key, '@') === 0) {
-					$attrs .= ' ' . substr ($key, 1) . '="' . $this->_xml_entities ($value) . '"';
-					continue;
-				}
-				$res .= $this->_build_xml ($key, $value);
-				$keys = array_keys ($v);
-				if (is_numeric ($key) && $key !== array_pop ($keys)) {
-					// reset attributes on repeating tags
-					if (is_array ($value)) {
-						$res = str_replace ('<' . $k . '{{attributes}}>', '<' . $k . $attrs . '>', $res);
-						$attrs = '';
-					}
-					$res .= '</' . $k . ">\n<" . $k . '{{attributes}}>';
-				}
-			}
-		} else {
-			$res .= $this->_xml_entities ($v);
-		}
-		if (! is_numeric ($k)) {
-			$res .= '</' . $k . ">\n";
-		}
-		$res = str_replace ('<' . $k . '{{attributes}}>', '<' . $k . $attrs . '>', $res);
-		return $res;
-	}
-
-	/**
-	 * Returns the unicode value of the string
-	 *
-	 * @param string $c The source string
-	 * @param integer $i The index to get the char from (passed by reference for use in a loop)
-	 * @return integer The value of the char at $c[$i]
-	 * @author kerry at shetline dot com
-	 * @author Dom Hastings - modified to suit my needs
-	 * @see http://www.php.net/manual/en/function.ord.php#78032
-	 */
-	function _unicode_ord (&$c, &$i = 0) {
-		// get the character length
-		$l = strlen($c);
-		// copy the offset
-		$index = $i;
-		
-		// check it's a valid offset
-		if ($index >= $l) {
-			return false;
-		}
-		
-		// check the value
-		$o = ord($c[$index]);
-		
-		// if it's ascii
-		if ($o <= 0x7F) {
-			return $o;
-		
-		// not sure what it is...
-		} elseif ($o < 0xC2) {
-			return false;
-		
-		// if it's a two-byte character	
-		} elseif ($o <= 0xDF && $index < $l - 1) {
-			$i += 1;
-			return ($o & 0x1F) <<	6 | (ord($c[$index + 1]) & 0x3F);
-		
-		// three-byte
-		} elseif ($o <= 0xEF && $index < $l - 2) {
-			$i += 2;
-			return ($o & 0x0F) << 12 | (ord($c[$index + 1]) & 0x3F) << 6 | (ord($c[$index + 2]) & 0x3F);
-			
-		// four-byte
-		} elseif ($o <= 0xF4 && $index < $l - 3) {
-			$i += 3;
-			return ($o & 0x0F) << 18 | (ord($c[$index + 1]) & 0x3F) << 12 | (ord($c[$index + 2]) & 0x3F) << 6 | (ord($c[$index + 3]) & 0x3F);
-			
-		// not sure what it is...
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * Makes the specified string XML-safe
-	 *
-	 * @param string $s
-	 * @param boolean $hex Whether or not to make hexadecimal entities (as opposed to decimal)
-	 * @return string The XML-safe result
-	 * @author Dom Hastings
-	 * @see http://www.w3.org/TR/REC-xml/#sec-predefined-ent
-	 */
-	function _xml_entities ($s, $hex = true) {
-		// if the string is empty
-		if (empty($s)) {
-			// just return it
-			return $s;
-		}
-		$s = (string) $s;
-		
-		// create the return string
-		$r = '';
-		// get the length
-		$l = strlen($s);
-		
-		// iterate the string
-		for ($i = 0; $i < $l; $i++) {
-			// get the value of the character
-			$o = $this->_unicode_ord($s, $i);
-			
-			// valid characters
-			$v = (
-				// \t \n <vertical tab> <form feed> \r
-				($o >= 9 && $o <= 13) || 
-				// <space> !
-				($o == 32) || ($o == 33) || 
-				// # $ %
-				($o >= 35 && $o <= 37) || 
-				// ( ) * + , - . /
-				($o >= 40 && $o <= 47) || 
-				// numbers
-				($o >= 48 && $o <= 57) ||
-				// : ;
-				($o == 58) || ($o == 59) ||
-				// = ?
-				($o == 61) || ($o == 63) ||
-				// @
-				($o == 64) ||
-				// uppercase
-				($o >= 65 && $o <= 90) ||
-				// [ \ ] ^ _ `
-				($o >= 91 && $o <= 96) || 
-				// lowercase
-				($o >= 97 && $o <= 122) || 
-				// { | } ~
-				($o >= 123 && $o <= 126)
-			);
-			
-			// if it's valid, just keep it
-			if ($v) {
-				$r .= $s[$i];
-			
-			// &
-			} elseif ($o == 38) {
-				$r .= '&amp;';
-			
-			// <
-			} elseif ($o == 60) {
-				$r .= '&lt;';
-			
-			// >
-			} elseif ($o == 62) {
-				$r .= '&gt;';
-			
-			// '
-			} elseif ($o == 39) {
-				$r .= '&apos;';
-			
-			// "
-			} elseif ($o == 34) {
-				$r .= '&quot;';
-			
-			// unknown, add it as a reference
-			} elseif ($o > 0) {
-				if ($hex) {
-					$r .= '&#x'.strtoupper(dechex($o)).';';
-					
-				} else {
-					$r .= '&#'.$o.';';
-				}
-			}
-		}
-		
-		return $r;
+		return $this -> _send_and_receive($req, 'PUT');
 	}
 
 	/**
 	 * Build the request, call _fetch() and parse the results.
 	 */
-	function _send_and_receive ($url, $method, $data = array (), $start_tag = false) {
-		$params = '';
-		$el = $start_tag ? $start_tag : $this->element_name; // Singular this time
-		if ($this->request_format == 'url') {
-			foreach ($data as $k => $v) {
-				if ($k != 'id' && $k != 'created-at' && $k != 'updated-at') {
-					$params .= '&' . $el . '[' . str_replace ('-', '_', $k) . ']=' . rawurlencode ($v);
-				}
-			}
-			$params = substr ($params, 1);
-		} elseif ($this->request_format == 'xml') {
-			$params = '<?xml version="1.0" encoding="UTF-8"?><' . $el . ">\n";
-			foreach ($data as $k => $v) {
-				if ($k != 'id' && $k != 'created-at' && $k != 'updated-at') {
-					$params .= $this->_build_xml ($k, $v);
-				}
-			}
-			$params .= '</' . $el . '>';
-		}
+	private static function _send_and_receive($url, $method, $data = array ()) {
 
-		if ($this->extra_params !== false) {
-			$url = $url . $this->extra_params;
-		}
+		//1. Create the qreuest
+		$request = null;
+		$json = "";
 
-		$this->request_body = $params;
-		$this->request_uri = $url;
-		$this->request_method = $method;
+		$post_headers = array('Content-Type'=> "application/json");
 
-		$res = $this->_fetch ($url, $method, $params);
-
-		if ($res === false) {
-			return $this;
-		}
-
-		// Keep splitting off any top headers until we get to the (XML) body:
-		while (strpos($res, "HTTP/") === 0) {
-			list ($headers, $res) = explode ("\r\n\r\n", $res, 2);
-			$this->response_headers = $headers;
-			$this->response_body = $res;
-			if (preg_match ('/HTTP\/[0-9]\.[0-9] ([0-9]+)/', $headers, $regs)) {
-				$this->response_code = $regs[1];
-			} else {
-				$this->response_code = false;
-			}
-
-			if (! $res) {
-				return $this;
-			} elseif ($res == ' ') {
-				$this->error = 'Empty reply';
-				return $this;
-			}
-		}
-
-		// parse XML response
-		$xml = new SimpleXMLElement ($res);
-
-		// normalize xml element name in case rails ressource contains an underscore
-		if (str_replace ('-', '_', $xml->getName ()) == $this->element_name_plural) {
-			// multiple
-			$res = array ();
-			$cls = get_class ($this);
-			foreach ($xml->children () as $child) {
-				$obj = new $cls;
-				foreach ((array) $child as $k => $v) {
-					$k = str_replace ('-', '_', $k);
-					if (isset ($v['nil']) && $v['nil'] == 'true') {
-						continue;
-					} else {
-						$obj->_data[$k] = $v;
-					}
-				}
-				$res[] = $obj;
-			}
-			return $res;
-		} elseif ($xml->getName () == 'errors') {
-			// parse error message
-			$this->error = $xml->error;
-			$this->errno = $this->response_code;
-			return false;
-		}
-
-		foreach ((array) $xml as $k => $v) {
-			$k = str_replace ('-', '_', $k);
-			if (isset ($v['nil']) && $v['nil'] == 'true') {
-				continue;
-			} else {
-				$this->_data[$k] = $v;
-			}
-		}
-		return $this;
-	}
-
-	/**
-	 * Fetch the specified request via cURL.
-	 */
-	function _fetch ($url, $method, $params) {
-		if (! extension_loaded ('curl')) {
-			$this->error = 'cURL extension not loaded.';
-			return false;
-		}
-
-		$ch = curl_init ();
-		curl_setopt ($ch, CURLOPT_URL, $url);
-		curl_setopt ($ch, CURLOPT_MAXREDIRS, 3);
-		curl_setopt ($ch, CURLOPT_FOLLOWLOCATION, 0);
-		curl_setopt ($ch, CURLOPT_RETURNTRANSFER, 1);
-		curl_setopt ($ch, CURLOPT_VERBOSE, 0);
-		curl_setopt ($ch, CURLOPT_HEADER, 1);
-		curl_setopt ($ch, CURLOPT_CONNECTTIMEOUT, 10);
-		curl_setopt ($ch, CURLOPT_SSL_VERIFYPEER, 0);
-		curl_setopt ($ch, CURLOPT_SSL_VERIFYHOST, 0);
-
-		/* HTTP Basic Authentication */
-		if ($this->user && $this->password) {
-			curl_setopt ($ch, CURLOPT_USERPWD, $this->user . ":" . $this->password);	
-		}
-
-		if ($this->request_format == 'xml') {
-			$this->request_headers = array_merge ($this->request_headers, array ("Expect:", "Content-Type: text/xml", "Length: " . strlen ($params)));
-		}
 		switch ($method) {
-			case 'POST':
-				curl_setopt ($ch, CURLOPT_POST, 1);
-				curl_setopt ($ch, CURLOPT_POSTFIELDS, $params);
+			case 'POST' :
+				$json = json_encode($data);
+				$request = static::$client -> post($url, $post_headers, $json);
 				break;
-			case 'DELETE':
-				curl_setopt ($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+			case 'DELETE' :
+				//curl_setopt ($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
 				break;
-			case 'PUT':
-				curl_setopt ($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
-				curl_setopt ($ch, CURLOPT_POSTFIELDS, $params);
+			case 'PUT' :
+				$json = json_encode($data);
+				$request = static::$client -> put($url, $post_headers, $json);
 				break;
-			case 'GET':
-			default:
+			case 'GET' :
+				$request = static::$client -> get($url);
+			default :
 				break;
 		}
 
-		if (count ($this->request_headers)) {
-			curl_setopt ($ch, CURLOPT_HTTPHEADER, $this->request_headers);
+		if (static::$access_token) {
+			$request -> addHeader('AUTHORIZATION', "Token token=" . static::$access_token);
 		}
+		//2. add auth headers
 
-		$res = curl_exec ($ch);
+		static::$log -> addDebug($request -> getMethod() . " " . $request -> getURL() . "\n" . $json);
+		//3. send the request
+		$response = $request -> send();
 
-		$http_code = curl_getinfo ($ch, CURLINFO_HTTP_CODE);
+		//4. Decode the response and return
+		static::$log -> addDebug("\n" . $response -> getStatusCode() . " " . $response -> getReasonPhrase() . "\n" . $response -> getBody());
+		
+		static::$log -> addDebug("------------------------------\n");		
+		return json_decode($response -> getBody());
 
-		// Check HTTP status code for denied access
-		if ($http_code == 401) {
-			$this->errno = $http_code;
-			$this->error = "HTTP Basic: Access denied.";
-			curl_close ($ch);
-			return false;
-		}
-
-		// Check HTTP status code for rate limit
-		if ($http_code == 429) {
-			if (preg_match ('/Retry-After: ([0-9]+)/', $res, $retry_after)) {
-			  sleep(intval($retry_after[1]));
-			  return $this->_fetch ($url, $method, $params);
-			}
-			$this->errno = $http_code;
-			$this->error = "Too Many Requests";
-			curl_close ($ch);
-			return false;
-		}
-
-		if (! $res) {
-			$this->errno = curl_errno ($ch);
-			$this->error = curl_error ($ch);
-			curl_close ($ch);
-			return false;
-		}
-
-		curl_close ($ch);
-		return $res;
 	}
 
-	/**
-	 * Getter for internal object data.
-	 */
-	function __get ($k) {
-		if (isset ($this->_data[$k])) {
-			return $this->_data[$k];
-		}
-		return $this->{$k};
+	protected function init_log() {
+		date_default_timezone_set('Europe/Stockholm');
+		static::$log = new Logger('ActiveResource');
+		//$this->log->pushHandler(new StreamHandler('ActiveResource.log', Logger::DEBUG));
 	}
 
-	/**
-	 * Setter for internal object data.
-	 */
-	function __set ($k, $v) {
-		if (isset ($this->_data[$k])) {
-			$this->_data[$k] = $v;
-			return;
-		}
-		$this->{$k} = $v;
-	}
-
-	/**
-	 * Quick setter for chaining methods.
-	 */
-	function set ($k, $v = false) {
-		if (! $v && is_array ($k)) {
-			foreach ($k as $key => $value) {
-				$this->_data[$key] = $value;
-			}
-		} else {
-			$this->_data[$k] = $v;
-		}
-		return $this;
-	}
 }
+
+
+class ApiUser extends ActiveResource{
+	public static $element_name = 'api_user';
+	public static $site = 'http://localhost:3000/accounts/2/';
+	public static $access_token = "eba5bef1b170df3f300f724d168ca1a1";	
+}
+ApiUser::init();
+
+class Track extends ActiveResource {
+	public static $element_name = 'track';
+	public static $site = 'http://localhost:3000/accounts/2/';
+	public static $access_token = "eba5bef1b170df3f300f724d168ca1a1";
+}	
+
+Track::init();
+
+
+
+
+
+
+
+echo ApiUser::$element_name;
+echo Track::$element_name;
+echo ApiUser::$element_name;
+
+echo ApiUser::$element_name_plural;
+echo Track::$element_name_plural;
+echo ApiUser::$element_name_plural;
+
+
+ApiUser::findall();
+$account_scope = array("accounts"=>2);
+$track_scope = array("accounts"=>2, 'tracks'=>1);
+$a = ApiUser::find('4', $account_scope);
+echo $a -> email . "\n";
+echo $a -> id . "\n";
+echo $a -> access_token . "\n";
+
+ApiUser::create(array('email' => 'foo@foo.com'));
+ApiUser::update(4, array('email' => 'adsfadaf@bla.com', 'role'=>2));
+//Track::getTrackData();
+
 
 ?>
