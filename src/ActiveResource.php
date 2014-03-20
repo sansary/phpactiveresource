@@ -494,9 +494,9 @@ class Track extends ActiveResource {
  
  // testing validation errors. // gives 422 email cant be blank
  
-  $b = new ApiUser(false, array("accounts"=> 1));
-  $b -> access_token = "79c173f2eb55ae717138211001ff6b04"; //super admin
-  $user_4 = $b-> create(array("email" => ""));
+//  $b = new ApiUser(false, array("accounts"=> 1));
+//  $b -> access_token = "79c173f2eb55ae717138211001ff6b04"; //super admin
+//  $user_4 = $b-> create(array("email" => ""));
 
 
  
