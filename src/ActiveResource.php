@@ -155,11 +155,11 @@ class ActiveResource {
 	function save() {
 		//this is an update
 		if (isset($this -> data['id'])) {
-			return $this -> _send_and_receive($this -> site . $this -> element_name_plural.'/'.$this -> data['id']. '.json', 'PUT', array($this -> element_name => $this -> data));
+			return $this -> _send_and_receive($this -> site . $this -> element_name_plural.'/'.$this -> data['id']. '.json', 'PUT', $this -> data);
 			// update
 		}
 		// this is a create
-		return $this -> _send_and_receive($this -> site . $this -> element_name_plural . '.json', 'POST', array($this -> element_name => $this -> data));
+		return $this -> _send_and_receive($this -> site . $this -> element_name_plural . '.json', 'POST',  $this -> data);
 		// create
 	}
 
@@ -174,7 +174,7 @@ class ActiveResource {
 		if (isset($this -> data['id'])) {
 			$id = $this -> data['id'];
 		}
-		return $this -> _send_and_receive($this -> site . $this -> element_name_plural.'/'.$id. '.json', 'PUT', array($this -> element_name => $data));
+		return $this -> _send_and_receive($this -> site . $this -> element_name_plural.'/'.$id. '.json', 'PUT',  $data);
 	}
 
 
@@ -185,7 +185,7 @@ class ActiveResource {
 	 */
 	function create($data) {
 		// this is a create
-		return $this -> _send_and_receive($this -> site . $this -> element_name_plural . '.json', 'POST', array($this -> element_name => $data));
+		return $this -> _send_and_receive($this -> site . $this -> element_name_plural . '.json', 'POST',  $data);
 	}
 
 
@@ -255,8 +255,8 @@ class ActiveResource {
 			$req .= '/' . $this -> _data['id'];
 		}
 		$req .= '/' . $method . '.json';
-		return $this -> _send_and_receive($req, 'POST', $options, $start_tag);
-		return $this -> _send_and_receive($this -> site . $this -> element_name_plural . '/' . $id .'/'.$method .'.json' . $options_string, 'GET');
+		#return $this -> _send_and_receive($req, 'POST', $options, $start_tag);
+		return $this -> _send_and_receive($this -> site . $this -> element_name_plural . '/' . $id .'/'.$method .'.json' . $options_string, 'POST');
 		
 	}
 
@@ -334,45 +334,47 @@ class ActiveResource {
 		$this -> log -> addDebug("------------------------------\n");
 		$response_data = json_decode($response -> getBody());
 	
-		if(is_array($response_data))
-		{
-		// if returns an array of objects
-		$res = array ();
-			$cls = get_class ($this);
-			foreach ($response_data as $child) {
-				$obj = new $cls(false, $this->scope);
-				foreach ((array) $child as $k => $v) {
-					//$k = str_replace ('-', '_', $k);
-					if (isset ($v['nil']) && $v['nil'] == 'true') {
-						continue;
-					} else {
-						$obj->data[$k] = $v;
-					}
-				}
-				//print_r($obj -> data);
-				//$this -> log -> addDebug($obj -> data);
-				$res[] = $obj;
-			}
-		//print_r($res);
-		//var_dump($res);
-		return $res;
-		}
+		//if(is_array($response_data))
+		//{
+		//// if returns an array of objects
+		//$res = array ();
+		//	$cls = get_class ($this);
+		//	foreach ($response_data as $child) {
+		//		$obj = new $cls(false, $this->scope);
+		//		foreach ((array) $child as $k => $v) {
+		//			//$k = str_replace ('-', '_', $k);
+		//			if (isset ($v['nil']) && $v['nil'] == 'true') {
+		//				continue;
+		//			} else {
+		//				$obj->data[$k] = $v;
+		//			}
+		//		}
+		//		//print_r($obj -> data);
+		//		//$this -> log -> addDebug($obj -> data);
+		//		$res[] = $obj;
+		//	}
+		////print_r($res);
+		////var_dump($res);
+		//return $res;
+		//}
+		//
+		//else{
+		//	// if returns just one object
+		//		$cls = get_class ($this);
+		//		$obj = new $cls(false, $this->scope);
+		//		foreach ((array) $response_data as $k => $v) {
+		//			//$k = str_replace ('-', '_', $k);
+		//			if (isset ($v['nil']) && $v['nil'] == 'true') {
+		//				continue;
+		//			} else {
+		//				$obj->data[$k] = $v;
+		//			}
+		//		}
+		//	$this -> log -> addDebug($obj -> data);
+		//	return $obj;
+		//}
 		
-		else{
-			// if returns just one object
-				$cls = get_class ($this);
-				$obj = new $cls(false, $this->scope);
-				foreach ((array) $response_data as $k => $v) {
-					//$k = str_replace ('-', '_', $k);
-					if (isset ($v['nil']) && $v['nil'] == 'true') {
-						continue;
-					} else {
-						$obj->data[$k] = $v;
-					}
-				}
-			$this -> log -> addDebug($obj -> data);
-			return $obj;
-		}
+		return $response_data;
 		
 		}catch (\Exception $e) {
 			$this -> log -> addDebug("\n Exception " . $e->getResponse() -> getBody());	 
@@ -426,25 +428,26 @@ class ActiveResource {
 }
 
 
-class ApiUser extends ActiveResource{
-    var $element_name = 'api_user';
+class User extends ActiveResource{
+    var $element_name = 'user';
     var $site = 'http://localhost:3000/';///accounts/2/';
     //$access_token = "eba5bef1b170df3f300f724d168ca1a1";
-    var $access_token = "c5833f3f9668296ee596bfa24c4416f3";
+    var $access_token = "818a5f867d0a31ed6e2575b9d359a1a5";
 }
 
+//
+//class Track extends ActiveResource {
+//    var $element_name = 'track';
+//    var $site = 'http://localhost:3000';
+//    //$access_token = "eba5bef1b170df3f300f724d168ca1a1";
+//    var $access_token = "c5833f3f9668296ee596bfa24c4416f3";
+//}	
+//
+//
+//
 
-class Track extends ActiveResource {
-    var $element_name = 'track';
-    var $site = 'http://localhost:3000';
-    //$access_token = "eba5bef1b170df3f300f724d168ca1a1";
-    var $access_token = "c5833f3f9668296ee596bfa24c4416f3";
-}	
-
-
-
-
-
+$a= new User(false, array("accounts" => 1));
+$a -> create(array("api_user" => array("email" => "abc@email.com")));
 
 //// account_admin can access account 2 details
 //
